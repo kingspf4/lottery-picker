@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>抽籤小工具｜Lottery Picker</title>
+  <style>
+    :root{
+      --bg:#0f172a;/* slate-900 */
+      --card:#111827ee;/* gray-900 */
+      --muted:#94a3b8;/* slate-400 */
+      --accent:#38bdf8;/* sky-400 */
+      --ok:#22c55e;/* green-500 */
+      --warn:#f59e0b;/* amber-500 */
+      --danger:#ef4444;/* red-500 */
+    }
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(160deg,#0b1220,#0f172a 40%,#0b1220);color:#e5e7eb;font-family:"Microsoft JhengHei","Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,"Noto Sans TC",sans-serif}
+    .wrap{max-width:1100px;margin:auto;padding:20px}
+    h1{font-size:28px;margin:0 0 6px}
+    .sub{color:var(--muted);font-size:14px;margin-bottom:18px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .card{background:var(--card);backdrop-filter: blur(6px); border:1px solid #1f2937;border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,.35)}
+    .card h2{font-size:18px;margin:0 0 10px}
+    .card .hd{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #1f2937}
+    .card .bd{padding:16px}
+    textarea, input[type="text"]{width:100%;resize:vertical;min-height:180px;background:#0b1220;border:1px solid #1f2937;color:#e5e7eb;border-radius:12px;padding:12px;font-size:14px;line-height:1.5}
+    textarea::placeholder{color:#64748b}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .btn{appearance:none;border:1px solid #1f2937;background:#111827;color:#e5e7eb;border-radius:12px;padding:10px 14px;font-size:14px;cursor:pointer;transition:.15s transform,.15s background,.15s border}
+    .btn:hover{transform:translateY(-1px);border-color:#334155}
+    .btn:active{transform:translateY(0)}
+    .btn.primary{background:linear-gradient(180deg,#0ea5e9,#0284c7);border-color:#0ea5e9}
+    .btn.ok{background:linear-gradient(180deg,#22c55e,#16a34a);border-color:#22c55e}
+    .btn.warn{background:linear-gradient(180deg,#f59e0b,#d97706);border-color:#f59e0b}
+    .btn.danger{background:linear-gradient(180deg,#ef4444,#dc2626);border-color:#ef4444}
+    .pill{display:inline-flex;align-items:center;gap:6px;background:#0b1220;border:1px solid #1f2937;border-radius:999px;padding:8px 12px;color:#cbd5e1;font-size:13px}
+    .list{display:flex;flex-direction:column;gap:8px;max-height:360px;overflow:auto;padding-right:4px}
+    .tag{display:inline-flex;align-items:center;gap:8px;background:#0b1220;border:1px solid #1f2937;border-radius:10px;padding:8px 10px}
+    .tag small{color:var(--muted)}
+    .result{font-size:48px;font-weight:800;letter-spacing:1px;text-align:center;margin:6px 0 0}
+    .muted{color:var(--muted)}
+    .split{display:flex;gap:8px}
+    .split>*{flex:1}
+    .note{font-size:12px;color:#94a3b8;margin-top:8px}
+    .stat{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+    .stat .k{background:#0b1220;border:1px solid #1f2937;border-radius:10px;padding:10px;text-align:center}
+    .stat .k b{display:block;font-size:18px}
+    .footer{margin-top:22px;color:#a3a3a3;font-size:12px;text-align:center}
+    .switch{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+    .switch input{display:none}
+    .slider{width:42px;height:24px;background:#334155;border-radius:999px;position:relative;transition:.2s}
+    .slider::after{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px; background:#e5e7eb;border-radius:50%;transition:.2s}
+    input:checked + .slider{background:#22c55e}
+    input:checked + .slider::after{transform:translateX(18px)}
+    /* Confetti */
+    .confetti{position:fixed;inset:0;pointer-events:none}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>抽籤小工具</h1>
+    <div class="sub">支援「不重複抽取 / 可重複抽取」、已抽名單、復原上一步、CSV 匯入匯出、LocalStorage 自動保存。把這個檔案上傳到 GitHub Pages 就能用。</div>
+
+    <div class="grid">
+      <!-- 左：名單與設定 -->
+      <section class="card">
+        <div class="hd">
+          <h2>名單清單（每行一個）</h2>
+          <span id="count" class="pill">總數：0</span>
+        </div>
+        <div class="bd">
+          <div class="split">
+            <textarea id="names" placeholder="例如：\n王小明\n李小華\n...\n（小撇步：可直接貼上座號+姓名，系統會自動去除重複與空白）"></textarea>
+          </div>
+
+          <div class="row" style="margin-top:10px">
+            <button class="btn" id="btn-clean">去重/清理</button>
+            <button class="btn" id="btn-shuffle">隨機打亂</button>
+            <label class="switch pill">
+              <input type="checkbox" id="noRepeat" checked>
+              <span class="slider"></span>
+              <span>不重複抽取</span>
+            </label>
+          </div>
+
+          <div class="row" style="margin-top:10px">
+            <button class="btn" id="btn-import">匯入 CSV</button>
+            <button class="btn" id="btn-export">匯出 CSV</button>
+            <input type="file" id="file" accept=".csv" style="display:none" />
+          </div>
+
+          <div class="stat">
+            <div class="k"><small class="muted">待抽</small><b id="stat-left">0</b></div>
+            <div class="k"><small class="muted">已抽</small><b id="stat-drawn">0</b></div>
+            <div class="k"><small class="muted">總數</small><b id="stat-total">0</b></div>
+          </div>
+
+          <div class="note">※ 自動儲存：名單、設定、已抽紀錄會保存在同一台電腦的瀏覽器。</div>
+        </div>
+      </section>
+
+      <!-- 右：抽籤與結果 -->
+      <section class="card">
+        <div class="hd">
+          <h2>抽籤</h2>
+          <div class="row">
+            <button class="btn primary" id="btn-draw">抽一位</button>
+            <button class="btn ok" id="btn-undo">復原上一步</button>
+            <button class="btn warn" id="btn-reset">重置（清空已抽）</button>
+            <button class="btn danger" id="btn-clearAll">全部清空</button>
+          </div>
+        </div>
+        <div class="bd">
+          <div class="result" id="result">—</div>
+          <p class="muted" id="tip">輸入名單後按「抽一位」。</p>
+
+          <h3 style="margin:18px 0 8px">已抽名單</h3>
+          <div class="list" id="drawnList"></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="footer">v1.0 · © 2025 · 可自由修改，用於課堂、抽座號、分組、抽問答等。</div>
+  </div>
+
+  <canvas class="confetti" id="confetti"></canvas>
+
+  <script>
+    // ====== 狀態 ======
+    const el = {
+      names: document.getElementById('names'),
+      count: document.getElementById('count'),
+      noRepeat: document.getElementById('noRepeat'),
+      btnClean: document.getElementById('btn-clean'),
+      btnShuffle: document.getElementById('btn-shuffle'),
+      btnDraw: document.getElementById('btn-draw'),
+      btnUndo: document.getElementById('btn-undo'),
+      btnReset: document.getElementById('btn-reset'),
+      btnClearAll: document.getElementById('btn-clearAll'),
+      btnImport: document.getElementById('btn-import'),
+      btnExport: document.getElementById('btn-export'),
+      file: document.getElementById('file'),
+      statLeft: document.getElementById('stat-left'),
+      statDrawn: document.getElementById('stat-drawn'),
+      statTotal: document.getElementById('stat-total'),
+      result: document.getElementById('result'),
+      tip: document.getElementById('tip'),
+      drawnList: document.getElementById('drawnList'),
+    };
+
+    const storeKey = 'lottery-v1';
+    let state = {
+      pool: [],       // 待抽
+      drawn: [],      // 已抽（堆疊）
+      unique: true,   // 不重複抽取
+    };
+
+    // ====== 工具 ======
+    const uniq = (arr) => Array.from(new Set(arr));
+    const cleanLines = (txt) => {
+      return uniq(txt.split(/\r?\n/)
+        .map(s => s.trim())
+        .filter(Boolean));
+    };
+    const syncTextareaFromPool = () => {
+      el.names.value = state.pool.join('\n');
+      updateCount();
+    };
+    const updateCount = () => {
+      const total = state.pool.length + state.drawn.length;
+      el.count.textContent = `總數：${total}`;
+      el.statLeft.textContent = state.pool.length;
+      el.statDrawn.textContent = state.drawn.length;
+      el.statTotal.textContent = total;
+    };
+    const save = () => {
+      localStorage.setItem(storeKey, JSON.stringify(state));
+    };
+    const load = () => {
+      const raw = localStorage.getItem(storeKey);
+      if(!raw) return;
+      try{
+        const s = JSON.parse(raw);
+        if(Array.isArray(s.pool)) state.pool = s.pool;
+        if(Array.isArray(s.drawn)) state.drawn = s.drawn;
+        if(typeof s.unique === 'boolean') state.unique = s.unique;
+        el.noRepeat.checked = state.unique;
+        syncTextareaFromPool();
+        renderDrawn();
+      }catch(e){console.warn(e)}
+    };
+
+    // ====== 抽籤核心 ======
+    const shuffle = (arr) => {
+      for(let i=arr.length-1;i>0;i--){
+        const j = Math.floor(Math.random()*(i+1));
+        [arr[i],arr[j]] = [arr[j],arr[i]];
+      }
+      return arr;
+    };
+
+    const drawOne = () => {
+      const pool = state.pool;
+      const all = [...pool, ...state.drawn];
+      if(all.length === 0){
+        flashTip('請先輸入名單');
+        return;
+      }
+      let pick;
+      if(state.unique){
+        if(pool.length === 0){
+          flashTip('已經全數抽完，按「重置」可再抽一次。');
+          return;
+        }
+        const idx = Math.floor(Math.random()*pool.length);
+        pick = pool.splice(idx,1)[0];
+      }else{
+        pick = all[Math.floor(Math.random()*all.length)];
+      }
+      state.drawn.unshift(pick); // 放最前面
+      showResult(pick);
+      renderDrawn();
+      updateCount();
+      save();
+      boom();
+    };
+
+    const undo = () => {
+      if(state.drawn.length === 0){flashTip('沒有可復原的步驟');return}
+      const last = state.drawn.shift();
+      if(state.unique){ state.pool.push(last); }
+      showResult('—');
+      renderDrawn();
+      updateCount();
+      save();
+    };
+
+    const resetDrawn = () => {
+      if(state.unique){
+        state.pool.push(...state.drawn);
+      }
+      state.drawn = [];
+      showResult('—');
+      renderDrawn();
+      updateCount();
+      save();
+    };
+
+    const clearAll = () => {
+      if(!confirm('確定要清空名單與已抽紀錄嗎？')) return;
+      state = { pool: [], drawn: [], unique: true };
+      el.noRepeat.checked = true;
+      el.names.value = '';
+      showResult('—');
+      renderDrawn();
+      updateCount();
+      save();
+    };
+
+    // ====== UI 呈現 ======
+    const renderDrawn = () => {
+      el.drawnList.innerHTML = '';
+      if(state.drawn.length === 0){
+        el.drawnList.innerHTML = '<div class="muted">（尚未抽出）</div>';
+        return;
+      }
+      state.drawn.forEach((name, i) => {
+        const div = document.createElement('div');
+        div.className = 'tag';
+        div.innerHTML = `<div><b>${escapeHTML(name)}</b></div><small>#${state.drawn.length - i}</small>`;
+        el.drawnList.appendChild(div);
+      });
+    };
+
+    const showResult = (text) => {
+      el.result.textContent = text;
+      el.tip.textContent = text==='—' ? '輸入名單後按「抽一位」。' : '恭喜被抽到！';
+    };
+
+    const flashTip = (msg) => {
+      el.tip.textContent = msg; setTimeout(()=>{ el.tip.textContent = '' }, 1800);
+    };
+
+    const escapeHTML = (s) => s.replace(/[&<>"]+/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));
+
+    // ====== 事件綁定 ======
+    el.names.addEventListener('input', () => {
+      state.pool = cleanLines(el.names.value);
+      updateCount();
+      save();
+    });
+
+    el.btnClean.addEventListener('click', () => {
+      state.pool = cleanLines(el.names.value);
+      syncTextareaFromPool();
+      flashTip('已清理空白與重複');
+      save();
+    });
+
+    el.btnShuffle.addEventListener('click', () => {
+      state.pool = shuffle(cleanLines(el.names.value));
+      syncTextareaFromPool();
+      flashTip('已隨機打亂');
+      save();
+    });
+
+    el.noRepeat.addEventListener('change', () => {
+      state.unique = el.noRepeat.checked; save();
+    });
+
+    el.btnDraw.addEventListener('click', drawOne);
+    el.btnUndo.addEventListener('click', undo);
+    el.btnReset.addEventListener('click', resetDrawn);
+    el.btnClearAll.addEventListener('click', clearAll);
+
+    // 匯入/匯出 CSV
+    el.btnImport.addEventListener('click', ()=> el.file.click());
+    el.file.addEventListener('change', (e)=>{
+      const file = e.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = reader.result;
+        const lines = text.split(/\r?\n/).map(s=>s.split(',')[0]).filter(Boolean);
+        state.pool = uniq(lines);
+        syncTextareaFromPool();
+        save();
+      };
+      reader.readAsText(file,'utf-8');
+      e.target.value = '';
+    });
+    el.btnExport.addEventListener('click', ()=>{
+      const csv = state.pool.concat(state.drawn).join('\n');
+      const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'lottery-list.csv'; a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // ====== Confetti 動畫（簡版） ======
+    const confettiCanvas = document.getElementById('confetti');
+    const ctx = confettiCanvas.getContext('2d');
+    let pieces = []; let rafId;
+    const resize = ()=>{ confettiCanvas.width = innerWidth; confettiCanvas.height = innerHeight };
+    addEventListener('resize', resize); resize();
+
+    const boom = () => {
+      pieces = Array.from({length:120}, ()=>({
+        x: innerWidth/2 + (Math.random()-0.5)*120,
+        y: innerHeight/2,
+        r: Math.random()*6+2,
+        vx: (Math.random()-0.5)*6,
+        vy: Math.random()*-8-4,
+        a: Math.random()*Math.PI,
+        va: (Math.random()-0.5)*0.3,
+        g: 0.18 + Math.random()*0.05,
+      }));
+      cancelAnimationFrame(rafId); animate();
+      setTimeout(()=>cancelAnimationFrame(rafId), 1200);
+    };
+
+    const animate = () => {
+      ctx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height);
+      pieces.forEach(p=>{
+        p.x += p.vx; p.y += p.vy; p.vy += p.g; p.a += p.va;
+        ctx.save();
+        ctx.translate(p.x,p.y); ctx.rotate(p.a);
+        ctx.fillStyle = `hsl(${(p.x+p.y)%360} 90% 60%)`;
+        ctx.fillRect(-p.r/2,-p.r/2,p.r,p.r);
+        ctx.restore();
+      });
+      rafId = requestAnimationFrame(animate);
+    };
+
+    // 初始化
+    load();
+    updateCount();
+  </script>
+</body>
+</html>
